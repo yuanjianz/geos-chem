@@ -1133,8 +1133,8 @@ CONTAINS
     LM = State_Grid%NZ+1
 
     ! Set pointer to the appropriate humidity and surface pressure
-    SPHU   => State_Met%SPHU1
-    PS_WET => State_Met%PS1_WET
+    SPHU   => State_Met%SPHU2
+    PS_WET => State_Met%PS2_WET
     PEDGE_DRY => State_Met%PEDGE_DRY
     PMID_DRY => State_Met%PMID_DRY
     DELP_DRY => State_Met%DELP_DRY
