@@ -33,6 +33,9 @@ MODULE CALC_MET_MOD
 #if defined( ESMF_ ) || defined( EXTERNAL_GRID )
   PUBLIC  :: GCHP_Cap_Tropopause_Prs
 #endif
+#if defined( MODEL_GCHPCTM )
+  PRIVATE  :: SET_DRY_PRESSURE
+#endif
 !
 ! !REVISION HISTORY:
 !  26 Jun 2010 - R. Yantosca - Initial version
@@ -466,6 +469,18 @@ CONTAINS
        ! [hPa]. Assume constant humidity across grid box.
        !==============================================================
 
+#if defined( MODEL_GCHPCTM )
+       ! Set up dry pressure properties separately in set_dry_pressure below
+       ! Only calculate wet properties here
+
+       ! Mass of moist air [kg]
+       ADmoist = ( State_Met%DELP(I,J,L) * G0_100 ) * &
+                 State_Grid%AREA_M2(I,J)
+
+       ! Set grid box moist air density [kg/m3] 
+       ! Use moist air mass and volume                           
+       State_Met%MAIRDEN(I,J,L) = ADmoist / State_Met%AIRVOL(I,J,L)
+#else
        ! Partial pressure of dry air at lower edge of grid box [hPa]
        State_Met%PEDGE_DRY(I,J,L) = State_Met%PEDGE(I,J,L) * ( 1.e+0_fp - XH2O )
 
@@ -484,7 +499,6 @@ CONTAINS
        ! Update dry pressure difference as calculated from the
        ! dry surface pressure
        State_Met%DELP_DRY(I,J,L) = GET_DELP_DRY(I,J,L)
-
        !==============================================================
        ! Set mass of dry air in grid box [kg]
        !==============================================================
@@ -540,7 +554,7 @@ CONTAINS
        ! Set grid box moist air density [kg/m3] 
        ! Use moist air mass and volume                           
        State_Met%MAIRDEN(I,J,L) = ADmoist / State_Met%AIRVOL(I,J,L)
-
+#endif
        !==============================================================
        ! Define the various query fields of State_Met
        !
@@ -583,6 +597,12 @@ CONTAINS
     ENDDO
     ENDDO
     !$OMP END PARALLEL DO
+
+#if defined( MODEL_GCHPCTM )
+    ! Set 3D constructed dry pressure edge (PEDGE_DRY_3D) from 
+    ! State_Met%PS2_WET and State_Met%SPHU2 only for GCHPctm offline total pressure advection
+    CALL SET_DRY_PRESSURE( State_Grid, State_Met )
+#endif
 
     !=================================================================
     ! Compute more tropopause and chemistry grid quantities.  This
@@ -1056,6 +1076,109 @@ CONTAINS
 
   END SUBROUTINE SET_DRY_SURFACE_PRESSURE
 !EOC
+#if defined( MODEL_GCHPCTM )
+  !------------------------------------------------------------------------------
+!                  GEOS-Chem Global Chemical Transport Model                  !
+!------------------------------------------------------------------------------
+!BOP
+!
+! !IROUTINE: set_dry_pressure
+!
+! !DESCRIPTION: Subroutine SET\_DRY\_PRESSURE sets the 3D dry
+!  pressures for GCHP total pressure advection and related properties
+!\\
+!\\
+! !INTERFACE:
+!
+  SUBROUTINE SET_DRY_PRESSURE( State_Grid, State_Met)
+!
+! !USES:
+!
+    USE State_Grid_Mod,       ONLY : GrdState
+    USE State_Met_Mod,        ONLY : MetState
+    USE PRESSURE_MOD,         ONLY : GET_AP, GET_BP
+!
+! !INPUT PARAMETERS:
+!
+    TYPE(GrdState), INTENT(IN)     :: State_Grid  ! Grid State object
+!
+! !INPUT/OUTPUT PARAMETERS:
+!
+    TYPE(MetState), INTENT(INOUT)  :: State_Met   ! Meteorology State object
+!
+! !REVISION HISTORY:
+!  07 May 2024 - Y. Zhang - Initial version
+!  See https://github.com/geoschem/geos-chem for complete history
+!EOP
+!------------------------------------------------------------------------------
+!BOC
+!
+! !LOCAL VARIABLES:
+!
+    INTEGER            :: I, J, L, LM
+    REAL(fp)           :: PEDGE_BOT, PEDGE_TOP
+
+    ! Pointers
+    REAL(fp), POINTER  :: PEDGE_DRY(:,:,:) => NULL()
+    REAL(fp), POINTER  :: PMID_DRY(:,:,:) => NULL()
+    REAL(fp), POINTER  :: DELP_DRY(:,:,:) => NULL()
+    REAL(fp), POINTER  :: SPHU(:,:,:) => NULL()
+    REAL(fp), POINTER  :: PS_WET(:,:) => NULL()
+
+    !=================================================================
+    ! SET_DRY_PRESSURE begins here!
+    !=================================================================
+
+    ! Set LM
+    LM = State_Grid%NZ+1
+
+    ! Set pointer to the appropriate humidity and surface pressure
+    SPHU   => State_Met%SPHU1
+    PS_WET => State_Met%PS1_WET
+    PEDGE_DRY => State_Met%PEDGE_DRY
+    PMID_DRY => State_Met%PMID_DRY
+    DELP_DRY => State_Met%DELP_DRY
+
+    ! Reset dry surface pressure to TOA value
+    PEDGE_DRY(:,:,LM) = GET_AP(LM)
+
+    ! Calculate dry surface pressure from GMAO wet pressure as the
+    ! column sum of wet delta pressures with humidity removed
+    DO J = 1, State_Grid%NY
+    DO I = 1, State_Grid%NX
+    DO L = 1, State_Grid%NZ
+      ! Renew DP_DRY_PREV
+       State_Met%DP_DRY_PREV(I,J,LM-L) = State_Met%DELP_DRY(I,J,LM-L)
+      ! PEDGE_WET
+       PEDGE_BOT   = GET_AP(LM-L) + GET_BP(LM-L) * PS_WET(I,J)
+       PEDGE_TOP   = GET_AP(LM-L+1) + GET_BP(LM-L+1) * PS_WET(I,J)
+      ! DELP, PEDGE and PMID
+       DELP_DRY(I,J,LM-L) = ( PEDGE_BOT - PEDGE_TOP ) * &
+                        ( 1.e+0_fp - SPHU(I,J,LM-L) * 1.0e-3_fp )
+       PEDGE_DRY(I,J,LM-L) = PEDGE_DRY(I,J,LM-L+1) + DELP_DRY(I,J,LM-L)
+       PMID_DRY(I,J,LM-L) = 0.5e+0_fp * ( PEDGE_DRY(I,J,LM-L) + PEDGE_DRY(I,J,LM-L+1) )
+       ! Set mass of dry air in grid box [kg]
+       State_Met%AD(I,J,LM-L) = ( State_Met%DELP_DRY(I,J,LM-L) * G0_100 ) * &
+                                    State_Grid%AREA_M2(I,J)
+       ! Set grid box dry air density [kg/m3]
+       State_Met%AIRDEN(I,J,LM-L) = State_Met%AD(I,J,LM-L) / State_Met%AIRVOL(I,J,LM-L)
+       ! Set grid box dry air number density [molec/cm3]
+       State_Met%AIRNUMDEN(I,J,LM-L) = State_Met%AIRDEN(I,J,LM-L) * 1e-3_fp * &
+                                    AVO / AIRMW
+    ENDDO
+    ENDDO
+    ENDDO
+
+    ! Nullify pointers
+    PS_WET     => NULL()
+    PEDGE_DRY  => NULL()
+    DELP_DRY   => NULL()
+    PMID_DRY   => NULL()
+    SPHU       => NULL()
+
+  END SUBROUTINE SET_DRY_PRESSURE
+!EOC
+#endif
 !------------------------------------------------------------------------------
 !                  GEOS-Chem Global Chemical Transport Model                  !
 !------------------------------------------------------------------------------
