@@ -4,6 +4,9 @@ This file documents all notable changes to the GEOS-Chem repository starting in 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### Changed
+- Simplified SOA representations and fixed related AOD and TotalOA/OC calculations in benchmark.
+
 ## [14.4.3] - 2024-08-13
 ### Added
 - Added ModelEe.2 (GCAP 2.0) simulation to integration tests for GCClassic
@@ -48,6 +51,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 - Only read photolysis data in `Init_Photolysis` in first instance of GEOS-Chem on each PET in CESM as PIO requires it
+
 
 ## [14.4.1] - 2024-06-28
 ### Added
