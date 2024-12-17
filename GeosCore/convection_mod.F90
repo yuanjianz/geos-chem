@@ -608,7 +608,7 @@ CONTAINS
     DNS      = DBLE( NS )               ! Num internal timesteps (real)
     SDT      = DBLE( NDT ) / DBLE( NS ) ! seconds in internal timestep
 
-    IF ( Is_GF_Conv == .FALSE. ) THEN
+    IF ( .NOT. Is_GF_Conv ) THEN
        ! RAS scheme
        REEVAPCN(:) = REEVAPCN_MET(:)
        DQRCU(:) = DQRCU_MET(:)
@@ -658,7 +658,7 @@ CONTAINS
     ! PFLCU and PFICU are converted from kg/m2/s to m3/m2/s
     ! using water and ice densities, respectively.
     ! m3/m2/s becomes cm3/cm2/s using a factor of 100.
-    IF ( Is_GF_Conv == .FALSE. ) THEN
+    IF ( .NOT. Is_GF_Conv ) THEN
        PDOWN(:) = ( ( PFLCU(:) / 1000e+0_fp ) &
                 +   ( PFICU(:) /  917e+0_fp ) ) * 100e+0_fp
     ELSE
