@@ -943,6 +943,9 @@ MODULE State_Diag_Mod
      REAL(f8),           POINTER :: SatDiagnBoxHeight(:,:,:)
      LOGICAL                     :: Archive_SatDiagnBoxHeight
 
+     REAL(f8),           POINTER :: CloudBaseHeight(:,:)
+     LOGICAL                     :: Archive_CloudBaseHeight
+
      REAL(f8),           POINTER :: SatDiagnPEdge(:,:,:)
      LOGICAL                     :: Archive_SatDiagnPEdge
 
@@ -2412,6 +2415,9 @@ CONTAINS
 
     State_Diag%SatDiagnBoxHeight                   => NULL()
     State_Diag%Archive_SatDiagnBoxHeight           = .FALSE.
+
+    State_Diag%CloudBaseHeight                     => NULL()
+    State_Diag%Archive_CloudBaseHeight             = .FALSE.
 
     State_Diag%SatDiagnPEdge                       => NULL()
     State_Diag%Archive_SatDiagnPEdge               = .FALSE.
@@ -4853,6 +4859,25 @@ CONTAINS
          TaggedDiagList = TaggedDiag_List,                                   &
          Ptr2Data       = State_Diag%SatDiagnBoxHeight,                      &
          archiveData    = State_Diag%Archive_SatDiagnBoxHeight,              &
+         diagId         = diagId,                                            &
+         RC             = RC                                                )
+
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = TRIM( errMsg_ir ) // TRIM( diagId )
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+
+    diagId  = 'CloudBaseHeight'
+    CALL Init_and_Register(                                                  &
+         Input_Opt      = Input_Opt,                                         &
+         State_Chm      = State_Chm,                                         &
+         State_Diag     = State_Diag,                                        &
+         State_Grid     = State_Grid,                                        &
+         DiagList       = Diag_List,                                         &
+         TaggedDiagList = TaggedDiag_List,                                   &
+         Ptr2Data       = State_Diag%CloudBaseHeight,                        &
+         archiveData    = State_Diag%Archive_CloudBaseHeight,                &
          diagId         = diagId,                                            &
          RC             = RC                                                )
 
@@ -13049,6 +13074,11 @@ CONTAINS
                    RC       = RC                                            )
     IF ( RC /= GC_SUCCESS ) RETURN
 
+    CALL Finalize( diagId   = 'CloudBaseHeight',                         &
+                   Ptr2Data = State_Diag%CloudBaseHeight,                &
+                   RC       = RC                                            )
+    IF ( RC /= GC_SUCCESS ) RETURN
+
     CALL Finalize( diagId   = 'SatDiagnPEdge',                             &
                    Ptr2Data = State_Diag%SatDiagnPEdge,                    &
                    RC       = RC                                            )
@@ -15199,6 +15229,11 @@ CONTAINS
        IF ( isDesc    ) Desc  = 'Box height'
        IF ( isUnits   ) Units = 'm'
        IF ( isRank    ) Rank  = 3
+
+   ELSE IF ( TRIM( Name_AllCaps ) == 'CLOUDBASEHEIGHT' ) THEN
+       IF ( isDesc    ) Desc  = 'Cloud base height'
+       IF ( isUnits   ) Units = 'm'
+       IF ( isRank    ) Rank  = 2
 
     ELSE IF ( TRIM( Name_AllCaps ) == 'SATDIAGNPEDGE' ) THEN
        IF ( isDesc    ) Desc  = 'Pressure edges'
