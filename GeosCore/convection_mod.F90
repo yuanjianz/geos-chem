@@ -518,7 +518,7 @@ CONTAINS
     REAL(fp)               :: QDOWN,       DT,        F_WASHOUT
     REAL(fp)               :: K_RAIN,      WASHFRAC,  WET_Hg2
     REAL(fp)               :: WET_HgP,     MB,        QB
-    REAL(fp)               :: QB_NUM,      DELP_DRY_NUM
+    REAL(fp)               :: QB_NUM,      DELP_DRY_NUM, CLDBASE_HEIGHT
 
     ! Strings
     CHARACTER(LEN=255)     :: ErrMsg, ThisLoc
@@ -638,13 +638,16 @@ CONTAINS
 
     ! Minimum value of cloud base is the surface level
     CLDBASE = 1
+    CLDBASE_HEIGHT = 0
 
     ! Find the cloud base
     DO K = 1, NLAY
        IF ( DQRCU(K) > 0e+0_fp ) THEN
           CLDBASE = K
+          State_Diag%CloudBaseHeight(I,J) = CLDBASE_HEIGHT
           EXIT
        ENDIF
+       CLDBASE_HEIGHT = CLDBASE_HEIGHT + State_Met%BXHEIGHT(I,J,K)
     ENDDO
 
     !-----------------------------------------------------------------
