@@ -628,6 +628,7 @@ CONTAINS
                      / DELP(K)
           REEVAPCN(K) = MAX(0.0_fp, REEVAPCN(K))
        ENDDO
+       DQRCU(:) = DQRCU_MET(:)
        ! Zero DQRCU and some negative REEVAPCN at surface in GF scheme
        ! Set as zero to avoid cloud base mistakenly at surface level
        ! DQRCU(1) = 0.0_fp
