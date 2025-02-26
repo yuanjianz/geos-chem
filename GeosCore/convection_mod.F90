@@ -521,7 +521,6 @@ CONTAINS
     REAL(fp)               :: WET_HgP,     MB,        QB
     REAL(fp)               :: QB_NUM,      DELP_DRY_NUM, CLDBASE_HEIGHT
 !     REAL(fp)               :: DRYWET_RATIO, DRYWET_RATIO_BELOW, DRYWET_RATIO_ABOVE
-    REAL(fp)               :: T_SCALE,     TEMP_SO2s, TEMP_H2O2s
 
     ! Strings
     CHARACTER(LEN=255)     :: ErrMsg, ThisLoc
@@ -781,109 +780,8 @@ CONTAINS
                 ! DRYWET_RATIO = State_Met%DELP_DRY(I,J,K) / State_Met%DELP(I,J,K)
                 ! DRYWET_RATIO_ABOVE = State_Met%DELP_DRY(I,J,K+1) / State_Met%DELP(I,J,K+1)
 
-                IF ( K < CLDBASE ) THEN
-                   ! Initialize
-                   QDOWN       = 0e+0_fp
-                   F_WASHOUT   = 0e+0_fp
-                   WASHFRAC    = 0e+0_fp
-                   K_RAIN      = 0e+0_fp
-
-                   ! Check if there is precip coming through the bottom of box (I,J,K)
-                   IF ( PDOWN(K) > 0 ) THEN
-
-                      ! Compute F_WASHOUT, the fraction of grid box (I,J,L)
-                      ! experiencing washout. First, convert units of PDOWN, 
-                      ! the downward flux of precip leaving grid box (K+1)
-                      ! from [cm3 H20/cm2 area/s] to [cm3 H20/cm3 air/s]
-                      ! by dividing by box height in cm
-                      QDOWN = PDOWN(K) / ( BXHEIGHT(K) * 100e+0_fp  )
-
-                      ! Get updraft speed and calculates updraft time scale in each box
-                      T_SCALE = ( BXHEIGHT(K-1) + BXHEIGHT(K) ) &
-                              * 0.5 / GET_VUD(State_Met,Input_Opt,I,J,K)
-
-                      ! Compute K_RAIN and F_WASHOUT based on the flux of precip 
-                      ! leaving grid box (K+1).
-#ifdef LUO_WETD
-                      ! Luo et al scheme: Use COND_WATER_CONTENT = 2e-6 [cm3/cm3]
-                      K_RAIN   = LS_K_RAIN( QDOWN, 2.0e-6_fp )
-                      F_WASHOUT= CONV_F_PRIME( QDOWN, K_RAIN, SDT )
-#else
-                      ! Default scheme: Use COND_WATER_CONTENT = 1e-6 [cm3/cm3]
-                      ! (which was recommended by Qiaoqiao Wang et al [2014])
-                      K_RAIN   = LS_K_RAIN(  QDOWN,         1.0e-6_fp )
-                      F_WASHOUT= LS_F_PRIME( QDOWN, K_RAIN, 1.0e-6_fp )
-#endif
-                      ! Do not involve SO2 chemistry in the updraft scavenging
-                      TEMP_H2O2s = H2O2s(K-1)
-                      TEMP_SO2s = SO2s(K-1)
-                      ! Call WASHOUT to compute the fraction of species lost
-                      ! to washout in grid box (I,J,K)
-                      !
-                      ! For TOMAS, indicate that we are not calling WASHOUT
-                      ! from wet deposition, so that the proper unit conversions
-                      ! will be applied. -- Bob Yantosca (11 Apr 2024)
-                      CALL WASHOUT(                                                &
-                           ! --- Input ---
-                           I          = I,                                         &
-                           J          = J,                                         &
-                           L          = K-1,                                       &
-                           N          = IC,                                        &
-                           BXHEIGHT   = ( BXHEIGHT(K-1) + BXHEIGHT(K) ) * 0.5,     &
-                           TK         = T(K-1),                                    &
-                           PP         = PDOWN(K),                                  &
-                           DT         = T_SCALE,                                   &
-                           F          = F_WASHOUT,                                 &
-                           Input_Opt  = Input_Opt,                                 &
-                           State_Grid = State_Grid,                                &
-                           State_Met  = State_Met,                                 &
-#ifdef LUO_WETDEP
-                           pHRain     = pHRain,                                    &
-#endif          
-#ifdef TOMAS          
-                           fromWetDep = .FALSE.,                                   &
-#endif    
-                           ! --- Input/Output ---
-                           State_Chm  = State_Chm,                                 &
-                           ! Do not involve SO2 chemistry in the updraft scavenging
-                           H2O2s      = TEMP_H2O2s,                                &
-                           SO2s       = TEMP_SO2s,                                 &
-                           ! --- Output ---
-                           WASHFRAC   = WASHFRAC,                                  &
-                           KIN        = KIN,                                       &
-                           RC         = RC                                        )
-    
-                      ! Trap potential errors
-                      IF ( RC /= GC_SUCCESS ) THEN
-                         ErrMsg = 'Error encountered in "Washout" in Convective Updraft!'
-                         CALL GC_Error( ErrMsg, RC, ThisLoc )
-                         RETURN
-                      ENDIF
-                    
-                      ! Check if the species is an aerosol or not
-                      ! Amount of QC preserved against scavenging [kg/kg]
-                      IF ( KIN ) THEN
-                         ! Divided by F_WASHOUT since WASHFRAC is averaged over the whole box
-                         ! while here we only wants WASHFRAC in the WashOut region
-                         QC_PRES = QC * ( 1e+0_fp - WASHFRAC / F_WASHOUT )
-                         ! Amount of QC lost to scavenging [kg/kg]
-                         QC_SCAV = QC * WASHFRAC / F_WASHOUT
-                      ELSE
-                         QC_PRES = QC * ( 1e+0_fp - WASHFRAC )
-                         QC_SCAV = QC * WASHFRAC
-                      ENDIF
-
-                   ELSE
-                      QC_PRES = QC
-                      QC_SCAV = 0e+0_fp
-                   ENDIF
-
-                ELSE
-
-                  QC_PRES = QC * ( 1e+0_fp - F(K,NA) )
-                  QC_SCAV = QC * F(K,NA)
-
-                ENDIF
+                QC_PRES = QC * ( 1e+0_fp - F(K,NA) )
+                QC_SCAV = QC * F(K,NA)
 
                 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                 ! Update QC taking entrainment into account [kg/kg dry]
