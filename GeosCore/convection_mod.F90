@@ -520,7 +520,7 @@ CONTAINS
     REAL(fp)               :: K_RAIN,      WASHFRAC,  WET_Hg2
     REAL(fp)               :: WET_HgP,     MB,        QB
     REAL(fp)               :: QB_NUM,      DELP_DRY_NUM, CLDBASE_HEIGHT
-    REAL(fp)               :: DRYWET_RATIO, DRYWET_RATIO_BELOW, DRYWET_RATIO_ABOVE
+!     REAL(fp)               :: DRYWET_RATIO, DRYWET_RATIO_BELOW, DRYWET_RATIO_ABOVE
     REAL(fp)               :: T_SCALE,     TEMP_SO2s, TEMP_H2O2s
 
     ! Strings
@@ -777,9 +777,9 @@ CONTAINS
                 ! Air mass flowing into cloud at grid box (K) [kg/m2/s]
                 ENTRN   = CMOUT - CMFMC_BELOW
 
-                DRYWET_RATIO_BELOW = State_Met%DELP_DRY(I,J,K-1) / State_Met%DELP(I,J,K-1)
-                DRYWET_RATIO = State_Met%DELP_DRY(I,J,K) / State_Met%DELP(I,J,K)
-                DRYWET_RATIO_ABOVE = State_Met%DELP_DRY(I,J,K+1) / State_Met%DELP(I,J,K+1)
+                ! DRYWET_RATIO_BELOW = State_Met%DELP_DRY(I,J,K-1) / State_Met%DELP(I,J,K-1)
+                ! DRYWET_RATIO = State_Met%DELP_DRY(I,J,K) / State_Met%DELP(I,J,K)
+                ! DRYWET_RATIO_ABOVE = State_Met%DELP_DRY(I,J,K+1) / State_Met%DELP(I,J,K+1)
 
                 IF ( K < CLDBASE ) THEN
                    ! Initialize
@@ -889,8 +889,8 @@ CONTAINS
                 ! Update QC taking entrainment into account [kg/kg dry]
                 ! Prevent div by zero condition
                 IF ( ENTRN >= 0e+0_fp .and. CMOUT > 0e+0_fp ) THEN
-                   QC   = ( CMFMC_BELOW * QC_PRES * DRYWET_RATIO_BELOW &
-                           + ENTRN * Q(K) * DRYWET_RATIO ) / ( CMOUT * DRYWET_RATIO )
+                   QC   = ( CMFMC_BELOW * QC_PRES & !* DRYWET_RATIO_BELOW
+                           + ENTRN * Q(K) ) / CMOUT ! * DRYWET_RATIO ) / ( CMOUT * DRYWET_RATIO )
                 ENDIF
 
                 !------------------------------------------------------------
@@ -962,11 +962,11 @@ CONTAINS
                 ! Units of T0, T1, T2, T3, T4, and TSUM are
                 ! [kg/m2/s * kg species / kg dry air]
                 !------------------------------------------------------------
-                T0      =  CMFMC_BELOW * QC_SCAV * DRYWET_RATIO_BELOW
-                T1      =  CMFMC_BELOW * QC_PRES * DRYWET_RATIO_BELOW
-                T2      = -CMFMC(K  )  * QC * DRYWET_RATIO
-                T3      =  CMFMC(K  )  * Q(K+1) * DRYWET_RATIO_ABOVE
-                T4      = -CMFMC_BELOW * Q(K) * DRYWET_RATIO
+                T0      =  CMFMC_BELOW * QC_SCAV ! * DRYWET_RATIO_BELOW
+                T1      =  CMFMC_BELOW * QC_PRES ! * DRYWET_RATIO_BELOW
+                T2      = -CMFMC(K  )  * QC ! * DRYWET_RATIO
+                T3      =  CMFMC(K  )  * Q(K+1) ! * DRYWET_RATIO_ABOVE
+                T4      = -CMFMC_BELOW * Q(K) ! * DRYWET_RATIO
 
                 TSUM    = T1 + T2 + T3 + T4
 
@@ -1064,11 +1064,11 @@ CONTAINS
 
                    ! Species convected from K -> K+1
                    ! [kg/m2/s * kg species/kg dry air]
-                   T2   = -CMFMC(K) * QC * DRYWET_RATIO
+                   T2   = -CMFMC(K) * QC ! * DRYWET_RATIO
 
                    ! Species subsiding from K+1 -> K [kg/m2/s]
                    ! [kg/m2/s * kg species/kg dry air]
-                   T3   =  CMFMC(K) * Q(K+1) * DRYWET_RATIO_ABOVE
+                   T3   =  CMFMC(K) * Q(K+1) ! * DRYWET_RATIO_ABOVE
 
                    ! Change in species concentration [kg/kg]
                    DELQ = ( SDT / BMASS(K) ) * (T2 + T3)
@@ -1210,7 +1210,7 @@ CONTAINS
                       ! Define ALPHA, the fraction of raindrops that
                       ! re-evaporate when falling from grid box
                       ! (I,J,L+1) to (I,J,L)
-                      ALPHA = REEVAPCN(K) * BMASS(K) / DRYWET_RATIO &
+                      ALPHA = REEVAPCN(K) * DELP(K) * G0_100 & ! BMASS(K) & !/ DRYWET_RATIO
                               / ( PDOWN(K+1) * 10e+0_fp  )
 
                       ! For safety
