@@ -109,6 +109,7 @@ CONTAINS
     REAL(fp)           :: PEDGE (State_Grid%NZ+1)
     REAL(fp)           :: DIAG14(State_Grid%NZ,State_Chm%nAdvect)
     REAL(fp)           :: DIAG38(State_Grid%NZ,State_Chm%nWetDep)
+    REAL(fp)           :: DIAGCW(State_Grid%NZ,State_Chm%nWetDep)
     REAL(fp)           :: F     (State_Grid%NZ,State_Chm%nAdvect)
     REAL(fp), TARGET   :: FSOL  (State_Grid%NX,State_Grid%NY,&
                                  State_Grid%NZ,State_Chm%nAdvect)
@@ -284,6 +285,8 @@ CONTAINS
                                  DIAG14     = DIAG14,     &
                                  USE_DIAG38 = DoWetLoss,  &
                                  DIAG38     = DIAG38,     &
+                                 USE_DIAGCW = DoWetLoss,  &
+                                 DIAGCW     = DIAGCW,     &
                                  RC         = EC          )
 
        ! Trap potential errors (we can't exit an OpenMP loop)
@@ -324,6 +327,15 @@ CONTAINS
              ENDDO
           ENDDO
        ENDIF
+
+       IF ( State_Diag%Archive_WetLossConvWashOut ) THEN
+         DO S = 1, State_Diag%Map_WetLossConvWashOut%nSlots
+            NW = State_Diag%Map_WetLossConvWashOut%slot2id(S)
+            DO L = 1, State_Grid%NZ
+               State_Diag%WetLossConvWashOut(I,J,L,S) = DIAGCW(L,NW)
+            ENDDO
+         ENDDO
+      ENDIF
 
        ! Satellite diagnostic
        ! Loss of soluble species in convective updrafts [kg/s]
@@ -420,6 +432,8 @@ CONTAINS
                                   DIAG14,     &
                                   USE_DIAG38, &
                                   DIAG38,     &
+                                  USE_DIAGCW, &
+                                  DIAGCW,     &
                                   RC          )
 !
 ! !USES:
@@ -457,6 +471,7 @@ CONTAINS
     REAL(fp),       INTENT(IN)    :: TS_DYN      ! Dynamic timestep [sec]
     LOGICAL,        INTENT(IN)    :: USE_DIAG14  ! Archive DIAG14?
     LOGICAL,        INTENT(IN)    :: USE_DIAG38  ! Archive DIAG38?
+    LOGICAL,        INTENT(IN)    :: USE_DIAGCW  ! Archive DIAGCW?
 !
 ! !INPUT/OUTPUT PARAMETERS:
 !
@@ -467,6 +482,7 @@ CONTAINS
 !
     REAL(fp),       INTENT(OUT)   :: DIAG14(:,:) ! Array for ND14 diagnostic
     REAL(fp),       INTENT(OUT)   :: DIAG38(:,:) ! Array for ND38 diagnostic
+    REAL(fp),       INTENT(OUT)   :: DIAGCW(:,:) ! Array for Convective WashOut diagnostic
     INTEGER,        INTENT(OUT)   :: RC          ! Return code
 !
 ! !REMARKS:
@@ -642,18 +658,25 @@ CONTAINS
     !-----------------------------------------------------------------
 
     ! Minimum value of cloud base is the surface level
+    ! Cloud base would be 1 if DQRCU > 0 is not met (no cloud)
     CLDBASE = 1
     CLDBASE_HEIGHT = 0e+0_fp
+    IF ( State_Diag%Archive_CloudBaseHeight ) THEN
+      ! Initialize with undefined value
+      State_Diag%CloudBaseHeight(I,J) = -999.0_fp
+    ENDIF
 
     ! Find the cloud base
     DO K = 1, NLAY
-       ! Net convective cloud base
+       ! Net DQRCU convective cloud base
        IF ( DQRCU(K) > 0e+0_fp ) THEN
           CLDBASE = K
-          State_Diag%CloudBaseHeight(I,J) = CLDBASE_HEIGHT
+          IF ( State_Diag%Archive_CloudBaseHeight ) THEN
+             State_Diag%CloudBaseHeight(I,J) = CLDBASE_HEIGHT
+          ENDIF
           EXIT
        ENDIF
-       CLDBASE_HEIGHT = CLDBASE_HEIGHT + State_Met%BXHEIGHT(I,J,K)
+       CLDBASE_HEIGHT = CLDBASE_HEIGHT + BXHEIGHT(K)
     ENDDO
 
     !-----------------------------------------------------------------
@@ -710,6 +733,7 @@ CONTAINS
        ! Zero the DIAG38 diagnostic array
        IF ( NW > 0 ) THEN
           DIAG38(:,NW) = 0.0_fp
+          DIAGCW(:,NW) = 0.0_fp
        ENDIF
 
        !=====================================================================
@@ -1131,14 +1155,13 @@ CONTAINS
                    ! Amount of aerosol lost to washout in grid box [kg/m2]
                    ! (V. Shah, 9/14/15)
                    WETLOSS = ( Q(K) * BMASS(K) ) * WASHFRAC
-                   ! WashOut first, then re-evaporate (Y. Zhang, 2/25/25)
-                   T0_SUM(K+1) = T0_SUM(K+1) + WETLOSS
 
                    ! GAINED is the rained out aerosol coming down from
                    ! grid box (I,J,L+1) that will evaporate and re-enter
                    ! the atmosphere in the gas phase in grid box (I,J,L)
                    ! [kg species/m2/timestep]
-                   GAINED = T0_SUM(K+1) * ALPHA2
+                   ! WashOut first, then re-evaporate (Y. Zhang, 2/25/25)
+                   GAINED = ( T0_SUM(K+1) + WETLOSS ) * ALPHA2
                    WETLOSS = WETLOSS - GAINED
 
                    ! Update species concentration (V. Shah, mps, 5/20/15)
@@ -1202,14 +1225,14 @@ CONTAINS
                 !%%% NOTE: SHOULD TEST FOR NW > 0 BUT IF WE DO THAT WE
                 !%%% NO LONGER GET IDENTICAL RESULTS WITH THE REF CODE.
                 !%%% LOOK INTO THIS LATER.  (bmy, 7/7/16)
-                IF ( USE_DIAG38 .and. F(K,NA) > 0.0_fp ) THEN
-                   DIAG38(K,NW) = DIAG38(K,NW) + ( WETLOSS * AREA_M2 / NDT )
+                IF ( USE_DIAGCW .and. NW > 0 ) THEN
+                   DIAGCW(K,NW) = DIAGCW(K,NW) + ( WETLOSS * AREA_M2 / NDT )
                 ENDIF
 
                 ! check for infinity (added by hma, 20101117)
-                IF ( .not. IT_IS_FINITE( DIAG38(K,NW) ) ) THEN
+                IF ( .not. IT_IS_FINITE( DIAGCW(K,NW) ) ) THEN
                    WRITE( ErrMsg, 310 ) K, NW
-310                FORMAT( 'DIAG38 is infinity (K,NW)= ', 2i6, ' #3' )
+310                FORMAT( 'DIAGCW is infinity (K,NW)= ', 2i6, ' #3' )
                    CALL GC_Error( ErrMsg, RC, ThisLoc )
                    RETURN
                 ENDIF
