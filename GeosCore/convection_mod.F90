@@ -1036,8 +1036,9 @@ CONTAINS
              K_RAIN      = 0e+0_fp
 
              ! Check if...
-             ! there is precip coming into box (I,J,K) from (I,J,K+1)
-             IF ( PDOWN(K+1)  > 0 ) THEN
+             ! (1) there is precip coming into box (I,J,K) from (I,J,K+1)
+             ! (2) it is a wet dep species
+             IF ( PDOWN(K+1) > 0 .and. NW > 0) THEN
 
                 ! Compute F_WASHOUT, the fraction of grid box (I,J,L)
                 ! experiencing washout. First, convert units of PDOWN, 
