@@ -724,6 +724,10 @@ MODULE State_Diag_Mod
      TYPE(DgnMap),       POINTER :: Map_WetLossConv
      LOGICAL                     :: Archive_WetLossConv
 
+     REAL(f4),           POINTER :: WetLossConvWashOut(:,:,:,:)
+     TYPE(DgnMap),       POINTER :: Map_WetLossConvWashOut
+     LOGICAL                     :: Archive_WetLossConvWashOut
+
      REAL(f4),           POINTER :: SatDiagnWetLossConv(:,:,:,:)
      TYPE(DgnMap),       POINTER :: Map_SatDiagnWetLossConv
      LOGICAL                     :: Archive_SatDiagnWetLossConv
@@ -942,6 +946,9 @@ MODULE State_Diag_Mod
 
      REAL(f8),           POINTER :: SatDiagnBoxHeight(:,:,:)
      LOGICAL                     :: Archive_SatDiagnBoxHeight
+
+     REAL(f8),           POINTER :: CloudBaseHeight(:,:)
+     LOGICAL                     :: Archive_CloudBaseHeight
 
      REAL(f8),           POINTER :: SatDiagnPEdge(:,:,:)
      LOGICAL                     :: Archive_SatDiagnPEdge
@@ -2182,6 +2189,10 @@ CONTAINS
     State_Diag%Map_WetLossConv                     => NULL()
     State_Diag%Archive_WetLossConv                 = .FALSE.
 
+    State_Diag%WetLossConvWashOut                  => NULL()
+    State_Diag%Map_WetLossConvWashOut              => NULL()
+    State_Diag%Archive_WetLossConvWashOut          = .FALSE.
+
     State_Diag%SatDiagnWetLossConv                 => NULL()
     State_Diag%Map_SatDiagnWetLossConv             => NULL()
     State_Diag%Archive_SatDiagnWetLossConv         = .FALSE.
@@ -2412,6 +2423,9 @@ CONTAINS
 
     State_Diag%SatDiagnBoxHeight                   => NULL()
     State_Diag%Archive_SatDiagnBoxHeight           = .FALSE.
+
+    State_Diag%CloudBaseHeight                     => NULL()
+    State_Diag%Archive_CloudBaseHeight             = .FALSE.
 
     State_Diag%SatDiagnPEdge                       => NULL()
     State_Diag%Archive_SatDiagnPEdge               = .FALSE.
@@ -4487,6 +4501,30 @@ CONTAINS
     ENDIF
 
     !-----------------------------------------------------------------------
+    ! Loss of soluble species in convective updrafts
+    !-----------------------------------------------------------------------
+    diagID  = 'WetLossConvWashOut'
+    CALL Init_and_Register(                                                  &
+         Input_Opt      = Input_Opt,                                         &
+         State_Chm      = State_Chm,                                         &
+         State_Diag     = State_Diag,                                        &
+         State_Grid     = State_Grid,                                        &
+         DiagList       = Diag_List,                                         &
+         TaggedDiagList = TaggedDiag_List,                                   &
+         Ptr2Data       = State_Diag%WetLossConvWashOut,                     &
+         archiveData    = State_Diag%Archive_WetLossConvWashOut,             &
+         mapData        = State_Diag%Map_WetLossConvWashOut,                 &
+         diagId         = diagId,                                            &
+         diagFlag       = 'W',                                               &
+         RC             = RC                                                )
+
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = TRIM( errMsg_ir ) // TRIM( diagId )
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+
+    !-----------------------------------------------------------------------
     ! Satellite Diagnostics: Loss of soluble species in convective updrafts
     !-----------------------------------------------------------------------
     diagID  = 'SatDiagnWetLossConv'
@@ -4853,6 +4891,25 @@ CONTAINS
          TaggedDiagList = TaggedDiag_List,                                   &
          Ptr2Data       = State_Diag%SatDiagnBoxHeight,                      &
          archiveData    = State_Diag%Archive_SatDiagnBoxHeight,              &
+         diagId         = diagId,                                            &
+         RC             = RC                                                )
+
+    IF ( RC /= GC_SUCCESS ) THEN
+       errMsg = TRIM( errMsg_ir ) // TRIM( diagId )
+       CALL GC_Error( errMsg, RC, thisLoc )
+       RETURN
+    ENDIF
+
+    diagId  = 'CloudBaseHeight'
+    CALL Init_and_Register(                                                  &
+         Input_Opt      = Input_Opt,                                         &
+         State_Chm      = State_Chm,                                         &
+         State_Diag     = State_Diag,                                        &
+         State_Grid     = State_Grid,                                        &
+         DiagList       = Diag_List,                                         &
+         TaggedDiagList = TaggedDiag_List,                                   &
+         Ptr2Data       = State_Diag%CloudBaseHeight,                        &
+         archiveData    = State_Diag%Archive_CloudBaseHeight,                &
          diagId         = diagId,                                            &
          RC             = RC                                                )
 
@@ -12957,6 +13014,12 @@ CONTAINS
                    RC       = RC                                            )
     IF ( RC /= GC_SUCCESS ) RETURN
 
+    CALL Finalize( diagId   = 'WetLossConvWashOut',                          &
+                   Ptr2Data = State_Diag%WetLossConvWashOut,                 &
+                   mapData  = State_Diag%Map_WetLossConvWashOut,             &
+                   RC       = RC                                            )
+    IF ( RC /= GC_SUCCESS ) RETURN
+
     CALL Finalize( diagId   = 'SatDiagnWetLossConv',                         &
                    Ptr2Data = State_Diag%SatDiagnWetLossConv,                &
                    mapData  = State_Diag%Map_SatDiagnWetLossConv,            &
@@ -13046,6 +13109,11 @@ CONTAINS
 
     CALL Finalize( diagId   = 'SatDiagnBoxHeight',                         &
                    Ptr2Data = State_Diag%SatDiagnBoxHeight,                &
+                   RC       = RC                                            )
+    IF ( RC /= GC_SUCCESS ) RETURN
+
+    CALL Finalize( diagId   = 'CloudBaseHeight',                         &
+                   Ptr2Data = State_Diag%CloudBaseHeight,                &
                    RC       = RC                                            )
     IF ( RC /= GC_SUCCESS ) RETURN
 
@@ -15088,6 +15156,13 @@ CONTAINS
        IF ( isRank    ) Rank  = 3
        IF ( isTagged  ) TagId = 'WET'
 
+    ELSE IF ( TRIM( Name_AllCaps ) == 'WETLOSSCONVWASHOUT' ) THEN
+       IF ( isDesc    ) Desc  = &
+            'Loss of soluble species in convective precipitation wash out'
+       IF ( isUnits   ) Units = 'kg s-1'
+       IF ( isRank    ) Rank  = 3
+       IF ( isTagged  ) TagId = 'WET'
+
     ELSE IF ( TRIM( Name_AllCaps ) == 'SATDIAGNWETLOSSCONV' ) THEN
        IF ( isDesc    ) Desc  = &
             'Loss of soluble species in convective updrafts'
@@ -15199,6 +15274,11 @@ CONTAINS
        IF ( isDesc    ) Desc  = 'Box height'
        IF ( isUnits   ) Units = 'm'
        IF ( isRank    ) Rank  = 3
+
+   ELSE IF ( TRIM( Name_AllCaps ) == 'CLOUDBASEHEIGHT' ) THEN
+       IF ( isDesc    ) Desc  = 'Cloud base height'
+       IF ( isUnits   ) Units = 'm'
+       IF ( isRank    ) Rank  = 2
 
     ELSE IF ( TRIM( Name_AllCaps ) == 'SATDIAGNPEDGE' ) THEN
        IF ( isDesc    ) Desc  = 'Pressure edges'
