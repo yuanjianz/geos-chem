@@ -593,10 +593,10 @@ CONTAINS
     ! PFICU and PFLCU are on level edges
     PFICU    => State_Met%PFICU   (I,J,1:State_Grid%NZ) ! Dwnwd flx of conv
                                                           !  ice precip
-                                                          !  [kg/m2/s] [down edge]
+                                                          !  [kg/m2/s] [lower edge]
     PFLCU    => State_Met%PFLCU   (I,J,1:State_Grid%NZ) ! Dwnwd flux of conv
                                                           !  liquid precip
-                                                          !  [kg/m2/s] [down edge]
+                                                          !  [kg/m2/s] [lower edge]
 
     ! # of levels and # of species
     NLAY     = State_Grid%NZ
@@ -741,7 +741,7 @@ CONTAINS
        DO ISTEP = 1, NS
 
           ! Initialize
-          QC        = 0e+0_fp    ! [kg species/kg dry air]
+          QC     = 0e+0_fp       ! [kg species/kg dry air]
           T0_SUM = 0e+0_fp       ! [kg species/m2/timestep]
 
           !==================================================================
@@ -1036,10 +1036,8 @@ CONTAINS
              K_RAIN      = 0e+0_fp
 
              ! Check if...
-             ! (1) there is precip coming into box (I,J,K) from (I,J,K+1)
-             ! (2) there is species to re-evaporate
-             IF ( PDOWN(K+1)  > 0 .and. &
-                  T0_SUM > 0        ) THEN
+             ! there is precip coming into box (I,J,K) from (I,J,K+1)
+             IF ( PDOWN(K+1)  > 0 ) THEN
 
                 ! Compute F_WASHOUT, the fraction of grid box (I,J,L)
                 ! experiencing washout. First, convert units of PDOWN, 
@@ -1060,6 +1058,8 @@ CONTAINS
                 K_RAIN   = LS_K_RAIN(  QDOWN,         1.0e-6_fp )
                 F_WASHOUT= LS_F_PRIME( QDOWN, K_RAIN, 1.0e-6_fp )
 #endif
+                ! Cap F_WASHOUT by 0.033 suggested by CFCU
+                F_WASHOUT = MIN( 0.033_fp, F_WASHOUT )
 
                 ! Call WASHOUT to compute the fraction of species lost
                 ! to washout in grid box (I,J,K)
@@ -1169,7 +1169,6 @@ CONTAINS
                    ! Update T0_SUM, the total amount of scavenged
                    ! species that will be passed to the grid box below
                    ! [kg/m2/timestep]
-                   ! Add scavenged tracer in convective updraft below cloud base
                    T0_SUM = T0_SUM + WETLOSS
 
                 ELSE
@@ -1203,7 +1202,6 @@ CONTAINS
                    ! Update T0_SUM, the total amount of scavenged
                    ! species that will be passed to the grid box below
                    ! [kg/m2/timestep]
-                   ! Add scavenged tracer in convective updraft below cloud base
                    T0_SUM = T0_SUM + WETLOSS
 
                 ENDIF
