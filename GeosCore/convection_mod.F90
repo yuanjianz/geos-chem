@@ -528,7 +528,7 @@ CONTAINS
     REAL(fp)               :: CMOUT,       DELQ,      DQ
     REAL(fp)               :: DNS,         ENTRN,     QC
     REAL(fp)               :: QC_PRES,     QC_SCAV,   SDT
-    REAL(fp)               :: T0,          T1
+    REAL(fp)               :: T0_SUM,      T0,        T1
     REAL(fp)               :: T2,          T3,        T4
     REAL(fp)               :: TSUM,        LOST,      GAINED
     REAL(fp)               :: WETLOSS,     MASS_WASH, MASS_NOWASH
@@ -546,7 +546,6 @@ CONTAINS
     REAL(fp)               :: PDOWN    (State_Grid%NZ)
     REAL(fp)               :: REEVAPCN (State_Grid%NZ)
     REAL(fp)               :: DQRCU    (State_Grid%NZ)
-    REAL(fp)               :: T0_SUM   (State_Grid%NZ)
 
     ! Pointers
     REAL(fp),      POINTER :: BXHEIGHT     (:)
@@ -743,13 +742,11 @@ CONTAINS
 
           ! Initialize
           QC        = 0e+0_fp    ! [kg species/kg dry air]
-          ! T0_SUM is a temporary operational array and should not be used for diagnostic
-          T0_SUM(:) = 0e+0_fp    ! [kg species/m2/timestep]
+          T0_SUM = 0e+0_fp       ! [kg species/m2/timestep]
 
           !==================================================================
           ! Cloud Scavenging
-          ! WashOut type scavenging below cloud base
-          ! RainOut type scavenging above cloud base
+          ! Only scavenging above cloud base
           !==================================================================
           DO K = 1, KTOP
 
@@ -803,9 +800,15 @@ CONTAINS
                 ! DRYWET_RATIO_BELOW = State_Met%DELP_DRY(I,J,K-1) / State_Met%DELP(I,J,K-1)
                 ! DRYWET_RATIO = State_Met%DELP_DRY(I,J,K) / State_Met%DELP(I,J,K)
                 ! DRYWET_RATIO_ABOVE = State_Met%DELP_DRY(I,J,K+1) / State_Met%DELP(I,J,K+1)
-
-                QC_PRES = QC * ( 1e+0_fp - F(K,NA) )
-                QC_SCAV = QC * F(K,NA)
+                
+                ! Only do the scavenging above the cloud base
+                IF ( K > CLDBASE ) THEN
+                   QC_PRES = QC * ( 1e+0_fp - F(K,NA) )
+                   QC_SCAV = QC * F(K,NA)
+                ELSE
+                  QC_PRES = QC
+                  QC_SCAV = 0e+0_fp
+                ENDIF
 
                 !- - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
                 ! Update QC taking entrainment into account [kg/kg dry]
@@ -926,12 +929,7 @@ CONTAINS
                 ! Converting kg dry air to kg species requires use
                 ! of the molecular weight of air including moisture
                 ! (ewl, 6/5/15)
-                IF ( K < CLDBASE ) THEN
-                   T0_SUM(K) = T0 * SDT
-                ELSE
-                   ! Accumulative over cloud base
-                   T0_SUM(CLDBASE) = T0_SUM(CLDBASE) + T0 * SDT
-                ENDIF
+                T0_SUM = T0_SUM + T0 * SDT
 
                 !------------------------------------------------------------
                 ! (3.3)  N D 1 4   D i a g n o s t i c
@@ -1041,7 +1039,7 @@ CONTAINS
              ! (1) there is precip coming into box (I,J,K) from (I,J,K+1)
              ! (2) there is species to re-evaporate
              IF ( PDOWN(K+1)  > 0 .and. &
-                  T0_SUM(K+1) > 0        ) THEN
+                  T0_SUM > 0        ) THEN
 
                 ! Compute F_WASHOUT, the fraction of grid box (I,J,L)
                 ! experiencing washout. First, convert units of PDOWN, 
@@ -1161,7 +1159,7 @@ CONTAINS
                    ! the atmosphere in the gas phase in grid box (I,J,L)
                    ! [kg species/m2/timestep]
                    ! WashOut first, then re-evaporate (Y. Zhang, 2/25/25)
-                   GAINED = ( T0_SUM(K+1) + WETLOSS ) * ALPHA2
+                   GAINED = ( T0_SUM + WETLOSS ) * ALPHA2
                    WETLOSS = WETLOSS - GAINED
 
                    ! Update species concentration (V. Shah, mps, 5/20/15)
@@ -1172,7 +1170,7 @@ CONTAINS
                    ! species that will be passed to the grid box below
                    ! [kg/m2/timestep]
                    ! Add scavenged tracer in convective updraft below cloud base
-                   T0_SUM(K) = T0_SUM(K+1) + T0_SUM(K) + WETLOSS
+                   T0_SUM = T0_SUM + WETLOSS
 
                 ELSE
 
@@ -1188,13 +1186,13 @@ CONTAINS
                    ! species coming down from grid box (I,J,L+1).
                    ! (Eq. 15, Jacob et al, 2000)
                    ! Units are [kg species/m2/timestep]
-                   MASS_WASH = ( F_WASHOUT * Q(K) ) * BMASS(K) + T0_SUM(K+1)
+                   MASS_WASH = ( F_WASHOUT * Q(K) ) * BMASS(K) + T0_SUM
 
                    ! WETLOSS is the amount of species mass in
                    ! grid box (I,J,L) that is lost to washout.
                    ! (Eq. 16, Jacob et al, 2000)
                    ! [kg species/m2/timestep]
-                   WETLOSS     = MASS_WASH * WASHFRAC - T0_SUM(K+1)
+                   WETLOSS     = MASS_WASH * WASHFRAC - T0_SUM
 
                    ! The species left in grid box (I,J,L) is what was
                    ! originally in the non-precipitating fraction
@@ -1206,7 +1204,7 @@ CONTAINS
                    ! species that will be passed to the grid box below
                    ! [kg/m2/timestep]
                    ! Add scavenged tracer in convective updraft below cloud base
-                   T0_SUM(K) = T0_SUM(K+1) + T0_SUM(K) + WETLOSS
+                   T0_SUM = T0_SUM + WETLOSS
 
                 ENDIF
 
@@ -1257,7 +1255,7 @@ CONTAINS
              IF ( SpcInfo%IS_Hg2 ) THEN
 
                 ! Wet scavenged Hg(II) in [kg]
-                WET_Hg2 = ( T0_SUM(1) * AREA_M2 )
+                WET_Hg2 = ( T0_SUM * AREA_M2 )
 
                 ! Pass to "ocean_mercury_mod.f"
                 CALL ADD_Hg2_WD      ( I, J, WET_Hg2  )
@@ -1271,7 +1269,7 @@ CONTAINS
              IF ( SpcInfo%Is_HgP ) THEN
 
                 ! Wet scavenged Hg(P) in [kg]
-                WET_HgP = ( T0_SUM(1) * AREA_M2 )
+                WET_HgP = ( T0_SUM * AREA_M2 )
 
                 ! Pass to "ocean_mercury_mod.f"
                 CALL ADD_HgP_WD      ( I, J, WET_HgP  )
