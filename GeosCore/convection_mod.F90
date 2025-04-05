@@ -536,7 +536,6 @@ CONTAINS
     REAL(fp)               :: K_RAIN,      WASHFRAC,  WET_Hg2
     REAL(fp)               :: WET_HgP,     MB,        QB
     REAL(fp)               :: QB_NUM,      DELP_DRY_NUM, CLDBASE_HEIGHT
-!     REAL(fp)               :: DRYWET_RATIO, DRYWET_RATIO_BELOW, DRYWET_RATIO_ABOVE
 
     ! Strings
     CHARACTER(LEN=255)     :: ErrMsg, ThisLoc
@@ -628,7 +627,7 @@ CONTAINS
        ! RAS scheme
        REEVAPCN(:) = REEVAPCN_MET(:)
        ! Use net DQRCU for determing cloud base
-       DQRCU(:) = DQRCU_MET(:) - REEVAPCN_MET(:)
+       DQRCU(:) = DQRCU_MET(:)
     ELSE
        ! GF scheme
        ! REEVAPCN_MET is cumulative re-evaporation
@@ -643,12 +642,6 @@ CONTAINS
           REEVAPCN(K) = MAX(0.0_fp, REEVAPCN(K))
        ENDDO
        DQRCU(:) = DQRCU_MET(:)
-       ! Zero DQRCU and some negative REEVAPCN at surface in GF scheme
-       ! Set as zero to avoid cloud base mistakenly at surface level
-       ! DQRCU(1) = 0.0_fp
-       ! DO K = 2, NLAY
-       !    DQRCU(K) = DQRCU_MET(K) + REEVAPCN(K)
-       ! ENDDO
     ENDIF
 
     !-----------------------------------------------------------------
@@ -797,10 +790,6 @@ CONTAINS
                 ! Air mass flowing into cloud at grid box (K) [kg/m2/s]
                 ENTRN   = CMOUT - CMFMC_BELOW
 
-                ! DRYWET_RATIO_BELOW = State_Met%DELP_DRY(I,J,K-1) / State_Met%DELP(I,J,K-1)
-                ! DRYWET_RATIO = State_Met%DELP_DRY(I,J,K) / State_Met%DELP(I,J,K)
-                ! DRYWET_RATIO_ABOVE = State_Met%DELP_DRY(I,J,K+1) / State_Met%DELP(I,J,K+1)
-                
                 ! Only do the scavenging above the cloud base
                 IF ( K > CLDBASE ) THEN
                    QC_PRES = QC * ( 1e+0_fp - F(K,NA) )
@@ -1038,14 +1027,14 @@ CONTAINS
              ! Check if...
              ! (1) there is precip coming into box (I,J,K) from (I,J,K+1)
              ! (2) it is a wet dep species
-             IF ( PDOWN(K+1) > 0 .and. NW > 0) THEN
+             IF ( PDOWN(K) > 0 .and. NW > 0) THEN
 
                 ! Compute F_WASHOUT, the fraction of grid box (I,J,L)
                 ! experiencing washout. First, convert units of PDOWN, 
                 ! the downward flux of precip leaving grid box (K+1)
                 ! from [cm3 H20/cm2 area/s] to [cm3 H20/cm3 air/s]
                 ! by dividing by box height in cm
-                QDOWN = PDOWN(K+1) / ( BXHEIGHT(K+1) * 100e+0_fp  )
+                QDOWN = PDOWN(K) / ( BXHEIGHT(K) * 100e+0_fp  )
 
                 ! Compute K_RAIN and F_WASHOUT based on the flux of precip 
                 ! leaving grid box (K+1).
@@ -1060,7 +1049,7 @@ CONTAINS
                 F_WASHOUT= LS_F_PRIME( QDOWN, K_RAIN, 1.0e-6_fp )
 #endif
                 ! Cap F_WASHOUT by 0.033 suggested by CFCU
-                F_WASHOUT = MIN( 0.033_fp, F_WASHOUT )
+                !F_WASHOUT = 0.0_fp ! MIN( 0.033_fp, F_WASHOUT )
 
                 ! Call WASHOUT to compute the fraction of species lost
                 ! to washout in grid box (I,J,K)
@@ -1076,7 +1065,7 @@ CONTAINS
                      N          = IC,                                        &
                      BXHEIGHT   = BXHEIGHT(K),                               &
                      TK         = T(K),                                      &
-                     PP         = PDOWN(K+1),                                &
+                     PP         = PDOWN(K),                                  &
                      DT         = SDT,                                       &
                      F          = F_WASHOUT,                                 &
                      Input_Opt  = Input_Opt,                                 &
