@@ -803,8 +803,7 @@ CONTAINS
                 ! Update QC taking entrainment into account [kg/kg dry]
                 ! Prevent div by zero condition
                 IF ( ENTRN >= 0e+0_fp .and. CMOUT > 0e+0_fp ) THEN
-                   QC   = ( CMFMC_BELOW * QC_PRES & !* DRYWET_RATIO_BELOW
-                           + ENTRN * Q(K) ) / CMOUT ! * DRYWET_RATIO ) / ( CMOUT * DRYWET_RATIO )
+                   QC   = ( CMFMC_BELOW * QC_PRES + ENTRN * Q(K) ) / CMOUT
                 ENDIF
 
                 !------------------------------------------------------------
@@ -876,11 +875,11 @@ CONTAINS
                 ! Units of T0, T1, T2, T3, T4, and TSUM are
                 ! [kg/m2/s * kg species / kg dry air]
                 !------------------------------------------------------------
-                T0      =  CMFMC_BELOW * QC_SCAV ! * DRYWET_RATIO_BELOW
-                T1      =  CMFMC_BELOW * QC_PRES ! * DRYWET_RATIO_BELOW
-                T2      = -CMFMC(K  )  * QC ! * DRYWET_RATIO
-                T3      =  CMFMC(K  )  * Q(K+1) ! * DRYWET_RATIO_ABOVE
-                T4      = -CMFMC_BELOW * Q(K) ! * DRYWET_RATIO
+                T0      =  CMFMC_BELOW * QC_SCAV
+                T1      =  CMFMC_BELOW * QC_PRES
+                T2      = -CMFMC(K  )  * QC
+                T3      =  CMFMC(K  )  * Q(K+1)
+                T4      = -CMFMC_BELOW * Q(K)
 
                 TSUM    = T1 + T2 + T3 + T4
 
