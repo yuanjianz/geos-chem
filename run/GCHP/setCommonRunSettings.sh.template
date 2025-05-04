@@ -392,7 +392,7 @@ if [[ ${MassFlux_Entry} != "missing" ]]; then
     C180_Entry=$(grep "MFXC.*C180" ExtData.rc || echo "missing")
     if [[ ${C180_Entry} != "missing" ]]; then
         #### Dynamically scale mass flux and courant number for only GEOS-IT for now
-        trans_timestep_scale=$(echo "scale=7; ${TransConv_Timestep_sec} / 450" | bc)
+         trans_timestep_scale=$(printf "%.7f" $(echo "${TransConv_Timestep_sec} / 450" | bc -l) | awk '{if ($0 ~ /^\./) print "0" $0; else print $0}')
         sed -i -e "0,/MFXC/ s/\(none\)[[:space:]].*\(MFXC\)/\1 ${trans_timestep_scale} \2/" ExtData.rc
         sed -i -e "0,/CX/ s/\(none\)[[:space:]].*\(CX\)/\1 ${trans_timestep_scale} \2/" ExtData.rc
         input_res=180
