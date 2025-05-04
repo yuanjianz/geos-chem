@@ -3940,8 +3940,14 @@ CONTAINS
     !=================================================================
 
     ! Assume the rainout event happens in 30 minutes (1800 s)
-    ! Compute the minimum of DT / 1800s and 1.0
-    TIME = MIN( DT / 1800e+0_fp, 1e+0_fp )
+    ! In the original Giorgi, F., and W. L. Chameide 1986 paper
+    ! DT >= rainout event (tau) , so DT/tau is needed to offset
+    ! time-averaging of preicpitation formation rate Q.
+    ! However when DT < tau, there is no need for DT/tau since Q is already relatively
+    ! authentic representation of preicpitation formation rate
+
+    ! Compute the maximum of DT / 1800s and 1.0
+    TIME = MAX( DT / 1800e+0_fp, 1e+0_fp )
 
     ! Compute F' for convective precipitation (Eq. 13, Jacob et al, 2000)
     ! 0.3  = FMAX, the maximum value of F' for convective precip
