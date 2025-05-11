@@ -1531,7 +1531,7 @@ CONTAINS
     REAL(fp)               :: T0,          T0_SUM,    T1
     REAL(fp)               :: T2,          T3,        T4
     REAL(fp)               :: TSUM,        GAINED
-    REAL(fp)               :: WETLOSS,     MASS_WASH
+    REAL(fp)               :: WETLOSS,     MASS_WASH, F_PRECIP
     REAL(fp)               :: QDOWN,       DT,        F_WASHOUT
     REAL(fp)               :: K_RAIN,      WASHFRAC,  WET_Hg2
     REAL(fp)               :: WET_HgP
@@ -1640,6 +1640,27 @@ CONTAINS
     ENDDO
 
     !-----------------------------------------------------------------
+    ! Compute washout areal fraction
+    !-----------------------------------------------------------------
+    ! Washout fraction is calculated as the largest precipiation fraction in the cloud
+    QDOWN = 0e+0_fp
+    F_WASHOUT = 0e+0_fp
+    F_PRECIP = 0e+0_fp
+
+    ! No need to calcualte washout fratcion if the cloud base is at surface
+    IF ( CLDBASE > 1 ) THEN
+       DO K = CLDBASE, NLAY
+          QDOWN = ( DQRCU(K) + REEVAPCN(K) ) &
+                  * ( State_Met%MAIRDEN(I,J,K) / 1000.0_fp )
+
+          ! Use COND_WATER_CONTENT = 2e-6 [cm3/cm3]
+          K_RAIN   = LS_K_RAIN( QDOWN, 2.0e-6_fp )
+          F_PRECIP = CONV_F_PRIME( QDOWN, K_RAIN, SDT )
+          F_WASHOUT = MAX( F_WASHOUT, F_PRECIP )
+       ENDDO
+    ENDIF
+
+    !-----------------------------------------------------------------
     ! Compute PDOWN and BMASS
     !-----------------------------------------------------------------
     ! PDOWN is the convective precipitation leaving each
@@ -1702,7 +1723,7 @@ CONTAINS
           T0_SUM = 0e+0_fp    ! [kg species/m2/timestep]
 
           !==================================================================
-          ! (3)  C o n v e c t i v e T r a n s p o r t   L o o p
+          ! (3)  C o n v e c t i v e   T r a n s p o r t   L o o p
           !      (Only do cloud updraft scavenging above cloud base)
           !==================================================================
           DO K = 1, KTOP
@@ -1970,7 +1991,7 @@ CONTAINS
 
                 ENDIF
              ENDIF
-          ENDDO     ! End of loop for convective transport
+          ENDDO     ! End of loop for convective transport/scavenging
 
           !==================================================================
           ! (4)  B e l o w   C l o u d   W a s h o u t   &   R e e v a p
@@ -1983,85 +2004,75 @@ CONTAINS
              ! Begin loop for below cloud
              DO K = CLDBASE-1, 1, -1
 
-                ! Initialize
-                QDOWN       = 0e+0_fp
-                F_WASHOUT   = 0e+0_fp
-                WASHFRAC    = 0e+0_fp
-                ALPHA       = 0e+0_fp
-                ALPHA2      = 0e+0_fp
-                GAINED      = 0e+0_fp
-                WETLOSS     = 0e+0_fp
-                MASS_WASH   = 0e+0_fp
-                K_RAIN      = 0e+0_fp
+                ! Precipiation from above is essential for both washout and reevaporation
+                IF ( PDOWN(K+1) > 0e+0_fp ) THEN
 
-                ! Precipitation from upper edge is essential for both washout and reevaporation
-                IF ( PDOWN(K+1) > 0 ) THEN
+                   ! Initialize
+                   WASHFRAC    = 0e+0_fp
+                   ALPHA       = 0e+0_fp
+                   ALPHA2      = 0e+0_fp
+                   GAINED      = 0e+0_fp
+                   WETLOSS     = 0e+0_fp
+                   MASS_WASH   = 0e+0_fp
+
+                   IF ( F_WASHOUT <= 0e+0_fp ) THEN
+                      ErrMsg = 'Non-positive F_WASHOUT with positive PDOWN(K+1) below cloud base'
+                      CALL GC_Error( ErrMsg, RC, ThisLoc )
+                      PRINT *, 'K', K
+                      PRINT *, 'F_WASHOUT', F_WASHOUT
+                      PRINT *, 'PDOWN(K+1)', PDOWN(K+1)
+                      PRINT *, 'DQRCU', DQRCU(:)
+                      RETURN
+                   ENDIF
 
                    !==================================================================
                    ! (4.1)  W a s h o u t
                    !==================================================================
-                   ! Compute F_WASHOUT, the fraction of grid box (I,J,L)
-                   ! experiencing washout. First, convert units of PDOWN,
-                   ! the downward flux of precip leaving grid box (K+1)
-                   ! from [cm3 H20/cm2 area/s] to [cm3 H20/cm3 air/s]
-                   ! by dividing by box height in cm
-                   QDOWN = PDOWN(K+1) / ( BXHEIGHT(K+1) * 100e+0_fp )
-
-                   ! Compute K_RAIN and F_WASHOUT based on the flux of precip
-                   ! leaving grid box (K+1).
-                   ! F_WASHOUT here is guaranteed to be positive
-                   ! since it is calculated from PDOWN(K+1)
-#ifdef LUO_WETDEP
-                   ! Luo et al scheme: Use COND_WATER_CONTENT = 2e-6 [cm3/cm3]
-                   K_RAIN   = LS_K_RAIN( QDOWN, 2.0e-6_fp )
-                   F_WASHOUT= CONV_F_PRIME( QDOWN, K_RAIN, SDT )
-#else
-                   ! Default scheme: Use COND_WATER_CONTENT = 1e-6 [cm3/cm3]
-                   ! (which was recommended by Qiaoqiao Wang et al [2014])
-                   K_RAIN   = LS_K_RAIN(  QDOWN,         1.0e-6_fp )
-                   F_WASHOUT= LS_F_PRIME( QDOWN, K_RAIN, 1.0e-6_fp )
-#endif
-
                    ! Call WASHOUT to compute the fraction of species lost
                    ! to washout in grid box (I,J,K)
                    !
                    ! For TOMAS, indicate that we are not calling WASHOUT
                    ! from wet deposition, so that the proper unit conversions
                    ! will be applied. -- Bob Yantosca (11 Apr 2024)
-                   CALL WASHOUT(                                                &
-                        ! --- Input ---
-                        I          = I,                                         &
-                        J          = J,                                         &
-                        L          = K,                                         &
-                        N          = IC,                                        &
-                        BXHEIGHT   = BXHEIGHT(K),                               &
-                        TK         = T(K),                                      &
-                        PP         = QDOWN,                                     &
-                        DT         = SDT,                                       &
-                        F          = F_WASHOUT,                                 &
-                        Input_Opt  = Input_Opt,                                 &
-                        State_Grid = State_Grid,                                &
-                        State_Met  = State_Met,                                 &
+                   !
+                   ! PDOWN(K) is used for washout instead of K+1 to represents the actual precipiation for washout
+                   IF ( PDOWN(K) > 0e+0_fp ) THEN
+
+                      CALL WASHOUT(                                                &
+                           ! --- Input ---
+                           I          = I,                                         &
+                           J          = J,                                         &
+                           L          = K,                                         &
+                           N          = IC,                                        &
+                           BXHEIGHT   = BXHEIGHT(K),                               &
+                           TK         = T(K),                                      &
+                           PP         = PDOWN(K),                                  &
+                           DT         = SDT,                                       &
+                           F          = F_WASHOUT,                                 &
+                           Input_Opt  = Input_Opt,                                 &
+                           State_Grid = State_Grid,                                &
+                           State_Met  = State_Met,                                 &
 #ifdef LUO_WETDEP
-                        pHRain     = pHRain,                                    &
+                           pHRain     = pHRain,                                    &
 #endif
 #ifdef TOMAS
-                        fromWetDep = .FALSE.,                                   &
+                           fromWetDep = .FALSE.,                                   &
 #endif
-                        ! --- Input/Output ---
-                        State_Chm  = State_Chm,                                 &
-                        H2O2s      = H2O2s(K),                                  &
-                        SO2s       = SO2s(K),                                   &
-                        ! --- Output ---
-                        WASHFRAC   = WASHFRAC,                                  &
-                        KIN        = KIN,                                       &
-                        RC         = RC                                        )
+                           ! --- Input/Output ---
+                           State_Chm  = State_Chm,                                 &
+                           H2O2s      = H2O2s(K),                                  &
+                           SO2s       = SO2s(K),                                   &
+                           ! --- Output ---
+                           WASHFRAC   = WASHFRAC,                                  &
+                           KIN        = KIN,                                       &
+                           RC         = RC                                        )
 
-                   ! Trap potential errors
-                   IF ( RC /= GC_SUCCESS ) THEN
-                      ErrMsg = 'Error encountered in "Convective Washout"!'
-                      CALL GC_Error( ErrMsg, RC, ThisLoc )
-                      RETURN
+                      ! Trap potential errors
+                      IF ( RC /= GC_SUCCESS ) THEN
+                         ErrMsg = 'Error encountered in "Convective Washout"!'
+                         CALL GC_Error( ErrMsg, RC, ThisLoc )
+                         RETURN
+                      ENDIF
                    ENDIF
 
                    !==================================================================
@@ -2069,7 +2080,8 @@ CONTAINS
                    ! Reevaporation differ between kinetic species (Aerosol and HNO3)
                    ! and equilibrium species (Gases), see Jacob 2000
                    !==================================================================
-                   IF ( KIN ) THEN
+                   ! Temporarily do complete reevaporation for both kinetic and equil species here before refactorization.
+                   IF ( KIN .or. PDOWN(K) <= 0e+0_fp ) THEN
 
                       !---------------------------------------------------------
                       ! This is modeled as a kinetic process
@@ -2089,7 +2101,7 @@ CONTAINS
                          ! %%%% CASE 1 %%%%
                          ! Partial re-evaporation. Less precip is leaving
                          ! the grid box then entered from above (V. Shah, 9/14/15)
-                         IF( PDOWN(K) > TINYNUM ) THEN
+                         IF( PDOWN(K) > 0e+0_fp ) THEN
 
                             ! NOTE:
                             ! REEVAPCN is in units of [kg/kg/s]
