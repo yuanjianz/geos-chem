@@ -419,10 +419,13 @@ if [[ ${MassFlux_Entry} != "missing" ]]; then
 	exit 1
     fi
 
-    #### Check that grid/run resolutions are evenly divisible by NX and NY/6
-    if (( ${lowest_res} % ${NX} != 0 || ${lowest_res} % (${NY}/6) != 0 )); then
-	echo "ERROR: Input and run resolutions must divide evenly by NX and NY/6 when using mass flux inputs. Manually set NX and NY in setCommonRunSettings.sh for your simulation. Current settings are input resolution ${input_res}, grid resolution ${CS_RES}, NX ${NX} and NY ${NY}."
-	exit 1
+    # No need to have this requirement if no regridding is performed
+    if [[ ${lowest_res} != ${highest_res} ]]; then
+        #### Check that grid/run resolutions are evenly divisible by NX and NY/6
+        if (( ${lowest_res} % ${NX} != 0 || ${lowest_res} % (${NY}/6) != 0 )); then
+	    echo "ERROR: Input and run resolutions must divide evenly by NX and NY/6 when using mass flux inputs. Manually set NX and NY in     setCommonRunSettings.sh for your simulation. Current settings are input resolution ${input_res}, grid resolution ${CS_RES}, NX ${NX}     and NY ${NY}."
+	    exit 1
+        fi
     fi
 fi
 
