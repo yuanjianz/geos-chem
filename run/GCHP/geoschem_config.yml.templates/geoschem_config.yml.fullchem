@@ -64,7 +64,7 @@ operations:
       activate: false
       CO2_level: 600.0
       reference_CO2_level: 380.0
-    diag_alt_above_sfc_in_m: 10
+    diag_alt_above_sfc_in_m: 2
 
   pbl_mixing:
      activate: true
