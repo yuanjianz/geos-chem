@@ -2440,6 +2440,7 @@ HMS:
   Is_Advected: true
   Is_Aerosol: true
   Is_DryDep: true
+  Is_DryAlt: true
   Is_WetDep: true
   MW_g: 111.10
   WD_AerScavEff: 1.0
