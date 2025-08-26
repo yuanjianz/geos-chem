@@ -647,13 +647,13 @@ CONTAINS
     F_WASHOUT = 0e+0_fp
     LOCAL_F_WASHOUT = 0e+0_fp
     K_RAIN = 1.5e-3_fp
-    DECAY_CONST = 1 - EXP( -K * SDT )
+    DECAY_CONST = 1.0_fp - EXP( -K_RAIN * SDT )
     DO K = KTOP, CLDBASE, -1
        IF ( PDOWN(K) > 1.D-20 ) THEN
           IF ( DQRCU(K) > 1.D-20 ) THEN
             F_RAIN = CONV_F_PRIME( DQRCU(K) * State_Met%MAIRDEN(I,J,K) / &
                                   1000.0_fp, K_RAIN, 1.08e4_fp )
-            LOCAL_F_WASHOUT = ( 1 - ( 1 - F_RAIN * DECAY_CONST ) ** &
+            LOCAL_F_WASHOUT = ( 1.0_fp - ( 1.0_fp - F_RAIN * DECAY_CONST ) ** &
                               ( 1800e+0_fp / 1.08e4_fp ) ) / DECAY_CONST
             F_WASHOUT = MAX( F_WASHOUT, LOCAL_F_WASHOUT )
           ENDIF
@@ -1129,8 +1129,8 @@ CONTAINS
           DO K = CLDBASE-1, 1, -1
 
              ! Initialize
+#ifndef LUO_WETDEP
              QDOWN       = 0e+0_fp
-#ifndef LUO_WETDEP	     
              F_WASHOUT   = 0e+0_fp
 #endif
              WASHFRAC    = 0e+0_fp
@@ -1141,7 +1141,6 @@ CONTAINS
              LOST        = 0e+0_fp
              MASS_WASH   = 0e+0_fp
              MASS_NOWASH = 0e+0_fp
-             K_RAIN      = 0e+0_fp
 
              ! Check if...
              ! there is precip coming into box (I,J,K) from (I,J,K+1)
@@ -1172,9 +1171,7 @@ CONTAINS
                      Input_Opt  = Input_Opt,                                 &
                      State_Grid = State_Grid,                                &
                      State_Met  = State_Met,                                 &
-#ifdef LUO_WETDEP
                      pHRain     = pHRain,                                    &
-#endif
 #ifdef TOMAS
                      fromWetDep = .FALSE.,                                   &
 #endif
@@ -1657,14 +1654,14 @@ CONTAINS
     F_WASHOUT = 0e+0_fp
     LOCAL_F_WASHOUT = 0e+0_fp
     K_RAIN = 1.5e-3_fp
-    DECAY_CONST = 1 - EXP( -K * SDT )
+    DECAY_CONST = 1 - EXP( -K_RAIN * SDT )
     DO K = KTOP, CLDBASE, -1
        IF ( PDOWN(K) > 1.D-20 ) THEN
           IF ( DQRCU(K) > 1.D-20 ) THEN
             F_RAIN = CONV_F_PRIME( ( DQRCU(K) + REEVAPCN(K) ) * &
                                   State_Met%MAIRDEN(I,J,K) / &
                                   1000.0_fp, K_RAIN, 1.08e4_fp )
-            LOCAL_F_WASHOUT = ( 1 - ( 1 - F_RAIN * DECAY_CONST ) ** &
+            LOCAL_F_WASHOUT = ( 1.0_fp - ( 1.0_fp - F_RAIN * DECAY_CONST ) ** &
                               ( 1800e+0_fp / 1.08e4_fp ) ) / DECAY_CONST
             F_WASHOUT = MAX( F_WASHOUT, LOCAL_F_WASHOUT )
           ENDIF
@@ -2019,8 +2016,8 @@ CONTAINS
              DO K = CLDBASE-1, 1, -1
 
                 ! Initialize
-                QDOWN       = 0e+0_fp
 #ifndef LUO_WETDEP
+                QDOWN       = 0e+0_fp
                 F_WASHOUT   = 0e+0_fp
 #endif
                 WASHFRAC    = 0e+0_fp
@@ -2029,7 +2026,6 @@ CONTAINS
                 GAINED      = 0e+0_fp
                 WETLOSS     = 0e+0_fp
                 MASS_WASH   = 0e+0_fp
-                K_RAIN      = 0e+0_fp
 
                ! Precipitation from upper edge is essential for both washout and reevaporation
                IF ( PDOWN(K+1)  > 0 ) THEN
@@ -2062,9 +2058,7 @@ CONTAINS
                         Input_Opt  = Input_Opt,                                 &
                         State_Grid = State_Grid,                                &
                         State_Met  = State_Met,                                 &
-#ifdef LUO_WETDEP
                         pHRain     = pHRain,                                    &
-#endif
 #ifdef TOMAS
                         fromWetDep = .FALSE.,                                   &
 #endif
