@@ -504,6 +504,19 @@ CONTAINS
        ENDIF
     ENDIF
 
+    !=======================================================================
+    ! Initialize "aerosol_mod.F90" (move here for dry-run)
+    !=======================================================================
+    IF ( Input_Opt%ITS_A_FULLCHEM_SIM .or. &
+         Input_Opt%ITS_AN_AEROSOL_SIM ) THEN
+       CALL Init_Aerosol( Input_Opt, State_Chm, State_Diag, State_Grid, RC )
+       IF ( RC /= GC_SUCCESS ) THEN
+          ErrMsg = 'Error encountered in "Init_Aerosol"!'
+          CALL GC_Error( ErrMsg, RC, ThisLoc )
+          RETURN
+       ENDIF
+    ENDIF
+
     ! Exit for dry-run simulations
     IF ( Input_Opt%DryRun ) RETURN
 
@@ -605,19 +618,6 @@ CONTAINS
        ENDIF
     ENDIF
 
-    !-----------------------------------------------------------------
-    ! Initialize "aerosol_mod.F90"
-    !-----------------------------------------------------------------
-    IF ( Input_Opt%ITS_A_FULLCHEM_SIM .or. &
-         Input_Opt%ITS_AN_AEROSOL_SIM ) THEN
-       CALL Init_Aerosol( Input_Opt, State_Chm, State_Diag, State_Grid, RC )
-       IF ( RC /= GC_SUCCESS ) THEN
-          ErrMsg = 'Error encountered in "Init_Aerosol"!'
-          CALL GC_Error( ErrMsg, RC, ThisLoc )
-          RETURN
-       ENDIF
-    ENDIF
-
     !=================================================================
     ! Initialize simulation modules here
     !=================================================================
@@ -625,9 +625,8 @@ CONTAINS
     !-----------------------------------------------------------------
     ! Fullchem via KPP
     !-----------------------------------------------------------------
-
     IF ( Input_Opt%ITS_A_FULLCHEM_SIM ) THEN
-       CALL Init_FullChem( Input_Opt, State_Chm, State_Diag, State_Grid, RC )
+       CALL Init_FullChem( Input_Opt, State_Chm, State_Diag, RC )
        IF ( RC /= GC_SUCCESS ) THEN
           ErrMsg = 'Error encountered in "Init_FullChem"!'
           CALL GC_Error( ErrMsg, RC, ThisLoc )
