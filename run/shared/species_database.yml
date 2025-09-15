@@ -495,6 +495,7 @@ ASOA_PROP: &ASOAproperties
   Is_Advected: true
   Is_Aerosol: true
   Is_DryDep: true
+  Is_DryAlt: true
   Is_WetDep: true
   MW_g: 150.00
   WD_AerScavEff: 0.8
@@ -2992,6 +2993,7 @@ INDIOL:
   FullName: Generic aerosol-phase organonitrate hydrolysis product
   Is_Advected: true
   Is_Aerosol: true
+  Is_DryAlt: true
   Is_DryDep: true
   Is_WetDep: true
   MW_g: 102.0
@@ -3421,6 +3423,7 @@ LVOCOA:
   Is_Advected: true
   Is_Aerosol: true
   Is_DryDep: true
+  Is_DryAlt: true
   Is_WetDep: true
   MW_g: 154.19
   WD_AerScavEff: 0.8
@@ -5371,6 +5374,7 @@ SOAGX:
   Is_Advected: true
   Is_Aerosol: true
   Is_DryDep: true
+  Is_DryAlt: true
   Is_WetDep: true
   MW_g: 58.04
   WD_AerScavEff: 0.8
@@ -5386,6 +5390,7 @@ SOAIE:
   Is_Advected: true
   Is_Aerosol: true
   Is_DryDep: true
+  Is_DryAlt: true
   Is_WetDep: true
   MW_g: 118.15
   WD_AerScavEff: 0.8
@@ -5502,6 +5507,7 @@ TSOA_PROP: &TSOAproperties
   Is_Advected: true
   Is_Aerosol: true
   Is_DryDep: true
+  Is_DryAlt: true
   Is_WetDep: true
   MW_g: 150.0
   WD_AerScavEff: 0.8
