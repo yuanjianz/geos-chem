@@ -4857,7 +4857,8 @@ CONTAINS
 
    ! Reset SVOC emissions to zero to make sure that they are
    ! not double-counted (when doing PBL mixing)
-   IF ( HCOPOG1>0) HcoState%Spc(HCOPOG1)%Emis%Val = 0.0d0
+   IF ( HCOPOG1>0 ) HcoState%Spc(HCOPOG1)%Emis%Val = 0.0d0
+   IF ( HCOPOG2>0 ) HcoState%Spc(HCOPOG2)%Emis%Val = 0.0d0
 
  END SUBROUTINE EMISSCARBON
 !EOC
@@ -6044,7 +6045,7 @@ CONTAINS
 
          DARO2 = State_Chm%Species(id_LARO2)%Conc(I,J,L) &
                  * ( AVO / LARO2_MW_kg ) &
-                 / ( AVO / AROM_MW_kg  ) * ARO2CARB
+                 / ( AVO / AROM_MW_kg  )
 
       ELSE
 
